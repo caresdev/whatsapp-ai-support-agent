@@ -11,19 +11,24 @@ instance level.
 The workflow set is built in stages, mirroring the data-architecture
 rollout (see [`DECISIONS.md`](../DECISIONS.md)):
 
-- **Phase 1–2 (current):** `agent-main`, `notify-order`,
-  `agent-broadcast`. Single data tool: Google Sheets.
-- **Phase 4 (planned):** activates `ingest-knowledge` and adds a
-  Qdrant tool node to `agent-main`.
+- **Phase 1 (current):** no workflows yet. Infrastructure, credentials,
+  and the Sheets data model that everything below depends on.
+- **Phase 2:** `agent-main`. Single data tool: Google Sheets.
+- **Phase 3:** `notify-order`, wired into the ordering flow.
+- **Phase 4:** activates `ingest-knowledge` and adds a Qdrant tool
+  node to `agent-main`.
+- **Phase 5:** `agent-broadcast`.
+- **Phase 6:** no new workflows. Monitoring, error handling, and
+  prompt iteration across the existing set.
 
 ## What's in here
 
 | File | Phase | Trigger | Purpose |
 |---|---|---|---|
-| `agent-main.json` | 1–2 (current) | WhatsApp webhook | The primary conversational agent. Receives customer messages, looks up structured data in Sheets, generates a reply, and sends it back via the WhatsApp API. Phase 4 adds a Qdrant tool node alongside the Sheets node so the agent can route value vs. paragraph questions. |
-| `notify-order.json` | 1–2 (current) | Sub-workflow (called by `agent-main`) | Sends a structured order summary to the owner's WhatsApp when a customer confirms an order. |
-| `agent-broadcast.json` | 1–2 (current) | Manual / scheduled | Sends a one-to-many message to a customer list (promos, hours changes). Reads recipients from a Sheets tab. |
-| `ingest-knowledge.json` | 4 (placeholder) | Manual | *Not yet active.* Will read markdown files from [`knowledge/`](../knowledge/), chunk them, embed via OpenAI, and upsert to a Qdrant collection. Designed to do a wholesale re-index per run — see [`DECISIONS.md`](../DECISIONS.md). |
+| `agent-main.json` | 2 | WhatsApp webhook | The primary conversational agent. Receives customer messages, looks up structured data in Sheets, generates a reply, and sends it back via the WhatsApp API. Phase 4 adds a Qdrant tool node alongside the Sheets node so the agent can route value vs. paragraph questions. |
+| `notify-order.json` | 3 | Sub-workflow (called by `agent-main`) | Sends a structured order summary to the owner's WhatsApp when a customer confirms an order. |
+| `ingest-knowledge.json` | 4 | Manual | *Not yet active.* Will read markdown files from [`knowledge/`](../knowledge/), chunk them, embed via OpenAI, and upsert to a Qdrant collection. Designed to do a wholesale re-index per run — see [`DECISIONS.md`](../DECISIONS.md). |
+| `agent-broadcast.json` | 5 | Manual / scheduled | Sends a one-to-many message to a customer list (promos, hours changes). Reads recipients from a Sheets tab. |
 
 ## Read order for reviewers
 

@@ -35,7 +35,7 @@ hallucinations on price questions.
 
 The set of tools the prompt teaches changes by phase:
 
-- **Phase 1–2 (current):** one tool — **Google Sheets**. The prompt
+- **Phases 1–3 (current):** one tool — **Google Sheets**. The prompt
   instructs the agent to look up *every* structured fact (prices,
   availability, hours, delivery zones) in Sheets rather than
   answering from its own training data. Anything outside the
@@ -67,7 +67,7 @@ use it **early** rather than guess — the cost of a wrong answer to a
 customer (especially on allergy or pricing questions) is higher than
 the cost of a five-minute owner reply.
 
-This matters extra in Phase 1–2: without the Qdrant tool, the agent
+This matters extra in Phases 1–3: without the Qdrant tool, the agent
 has fewer ways to answer prose questions, so the escalation path
 absorbs the gap. As Phase 4 ships and Qdrant fills in those answers,
 expect the escalation rate to drop — that's a leading indicator the

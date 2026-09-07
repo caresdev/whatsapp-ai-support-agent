@@ -12,7 +12,7 @@ Newest first.
 for structured data + Qdrant for semantic search — but it rolls out
 in two stages:
 
-- **Stage 1 (Phase 1–2, current):** Google Sheets only. Single tool
+- **Stage 1 (Phases 1–3, current):** Google Sheets only. Single tool
   for menu, prices, availability, business settings, and order log.
 - **Stage 2 (Phase 4):** Adds Qdrant as a second tool for semantic
   search over unstructured prose (product stories, FAQ, policies,

@@ -2,7 +2,7 @@
 
 > **Phase 4, not yet live.** These files are the planned source
 > material for the agent's semantic-search tool (Qdrant), which is
-> added in Phase 4 of the rollout. The Phase 1–2 agent ships with
+> added in Phase 4 of the rollout. The Phase 1–3 agent ships with
 > Google Sheets only — see [`DECISIONS.md`](../DECISIONS.md) and
 > [`docs/data-architecture.md`](../docs/data-architecture.md) for
 > why the hybrid is staged.
