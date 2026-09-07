@@ -1,0 +1,40 @@
+%% WhatsApp AI Restaurant Agent - system architecture
+%% Canonical source. Paste inside a ```mermaid block; GitHub renders it natively.
+flowchart TB
+    customer["Customer<br/>WhatsApp"]
+    owner["Restaurant owner<br/>WhatsApp"]
+    meta["WhatsApp Business Cloud API<br/>Meta"]
+
+    subgraph vps["Hostinger VPS - Docker"]
+        nginx["Nginx<br/>TLS, Let's Encrypt"]
+
+        subgraph n8n["n8n"]
+            webhook["Webhook<br/>verify signature<br/>dedupe message.id<br/>ACK 200 first"]
+            agent["AI Agent<br/>tool use"]
+            memory[("Conversation memory")]
+            send["Send Message<br/>Graph API"]
+        end
+
+        qdrant[("Vector store<br/>Phase 4")]
+    end
+
+    llm["LLM provider<br/>Anthropic or OpenAI"]
+    sheets[("Google Sheets<br/>menu, settings, orders")]
+
+    customer -->|message| meta
+    meta -->|webhook POST| nginx
+    nginx --> webhook
+    webhook --> agent
+    agent <--> memory
+    agent --> llm
+    agent -->|read menu, write order| sheets
+    agent -.->|semantic search| qdrant
+    agent --> send
+    send -->|outbound reply| meta
+    meta -->|reply| customer
+    meta -->|order alerts| owner
+
+    classDef external fill:#f1f5f9,stroke:#94a3b8,color:#0f172a
+    classDef phase4 fill:#faf5ff,stroke:#a78bfa,stroke-dasharray:5 4,color:#5b21b6
+    class customer,owner,meta,llm,sheets external
+    class qdrant phase4

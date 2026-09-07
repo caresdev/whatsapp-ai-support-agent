@@ -1,80 +1,130 @@
 # WhatsApp AI Support Agent
 
-An AI-powered WhatsApp ordering assistant for a Brazilian restaurant,
-built with n8n, WhatsApp Business Cloud API, Google Sheets, and RAG.
+An AI WhatsApp ordering agent for a Brazilian
+restaurant, built with n8n, WhatsApp Business Cloud API, Google Sheets, and RAG. 
 
-## What It Does
+## What it does
 
-- Answers customer questions about the menu, hours, delivery, and payments
-- Guides customers through a complete ordering flow via WhatsApp
-- Manages a dynamic menu catalog from Google Sheets
-- Notifies the restaurant owner of new orders in real-time
-- Escalates to the owner when the AI can't help
+- Answers questions about the menu, hours, delivery, and payment methods
+- Walks a customer through a full order, start to confirmation
+- Reads the menu live from Google Sheets, so the owner changes a price in
+  a spreadsheet and the agent knows immediately
+- Notifies the owner of each new order on WhatsApp
+- Hands the conversation to a human when it can't help
 
 **Stack:** n8n (self-hosted) · WhatsApp Business Cloud API · Google Sheets
-· OpenAI · Qdrant *(vector store, added in Phase 4)*
+· OpenAI · Qdrant _(vector store, added in a later phase)_
 
-### Hybrid Data Architecture (staged rollout)
+## Architecture
 
-The agent's data layer is designed as a **hybrid** — two tools, the
-agent picks which to call per question — but it ships in two stages:
+```mermaid
+flowchart TB
+    customer["Customer<br/>WhatsApp"]
+    owner["Restaurant owner<br/>WhatsApp"]
+    meta["WhatsApp Business Cloud API<br/>Meta"]
 
-- **Phase 1–2 (current):** Google Sheets only. Structured lookups for
-  menu, prices, availability, business settings, and order logging.
-  With ~15–20 menu items, the entire catalog fits in the LLM's
-  context, giving 100% recall on every query.
-- **Phase 4 (planned):** Adds a **Qdrant vector store** as a second
-  tool for semantic search over unstructured knowledge — ingredient
-  deep-dives, allergen details, FAQ, product stories, delivery
-  policies. The agent will choose between the two tools per turn.
+    subgraph vps["Hostinger VPS - Docker"]
+        nginx["Nginx<br/>TLS, Let's Encrypt"]
 
-Why staged, why hybrid (and not RAG-only or Sheets-only forever):
-see [`docs/data-architecture.md`](docs/data-architecture.md) and
-the [decisions log](DECISIONS.md).
+        subgraph n8n["n8n"]
+            webhook["Webhook<br/>verify signature<br/>dedupe message.id<br/>ACK 200 first"]
+            agent["AI Agent<br/>tool use"]
+            memory[("Conversation memory")]
+            send["Send Message<br/>Graph API"]
+        end
 
-## How to Read This Repo
+        qdrant[("Vector store<br/>Phase 4")]
+    end
 
-This is a portfolio repo: the runtime (n8n, Qdrant, the WhatsApp webhook)
-lives on a self-hosted server, not in this directory. The repo is the
-**design and configuration artifact** behind the agent. If you're browsing
-to understand how it's built, read in this order:
+    llm["LLM provider<br/>Anthropic or OpenAI"]
+    sheets[("Google Sheets<br/>menu, settings, orders")]
 
-1. [`docs/architecture.md`](docs/architecture.md) — the end-to-end flow:
-   customer message → n8n → tool routing → response
-2. [`docs/data-architecture.md`](docs/data-architecture.md) — why the agent
-   splits between Google Sheets (structured) and Qdrant (semantic)
-3. [`prompts/system-prompt.md`](prompts/system-prompt.md) — the agent's
-   personality, tool-selection rules, and ordering flow (Portuguese)
-4. [`workflows/agent-main.json`](workflows/agent-main.json) — the primary
-   n8n workflow that wires everything together
-5. [`DECISIONS.md`](DECISIONS.md) — short ADRs explaining the bigger
-   tradeoffs (n8n vs custom code, Sheets + Qdrant hybrid, etc.)
+    customer -->|message| meta
+    meta -->|webhook POST| nginx
+    nginx --> webhook
+    webhook --> agent
+    agent <--> memory
+    agent --> llm
+    agent -->|read menu, write order| sheets
+    agent -.->|semantic search| qdrant
+    agent --> send
+    send -->|outbound reply| meta
+    meta -->|reply| customer
+    meta -->|order alerts| owner
 
-## Deployment
+    classDef external fill:#f1f5f9,stroke:#94a3b8,color:#0f172a
+    classDef phase4 fill:#faf5ff,stroke:#a78bfa,stroke-dasharray:5 4,color:#5b21b6
+    class customer,owner,meta,llm,sheets external
+    class qdrant phase4
+```
 
-The agent runs on a self-hosted n8n instance — these workflows are not
-intended to run locally. To stand up your own copy, follow the setup
-guides in [`docs/setup/`](docs/setup/):
+## Data architecture
 
-- [Hostinger + n8n](docs/setup/hostinger.md) (server provisioning)
-- [WhatsApp Business Cloud API](docs/setup/whatsapp.md)
-- [Google Sheets](docs/setup/google-sheets.md)
-- [Qdrant + knowledge ingestion](docs/setup/qdrant.md)
+The agent has two data tools and chooses between them based on user intent:
+1. **Google Sheets** holds everything structured — menu, prices,
+availability, business settings, the order log — and the agent reads it
+directly, which means 100% recall on "how much is X?" for a menu this
+size. 
+2. **Qdrant** will hold everything that's a paragraph rather than a
+value: ingredient deep-dives, allergen policy, the restaurant's story,
+FAQ. 
 
-## Documentation
+Sheets ships first (Phases 1–3) so the conversational logic gets
+validated before retrieval quality enters the debugging surface. Qdrant
+is added in Phase 4 as a second tool. The long version is
+in [`docs/data-architecture.md`](docs/data-architecture.md).
 
-- [Architecture & Data Flow](docs/architecture.md)
-- [Data Architecture Decision](docs/data-architecture.md)
-- [Decisions Log](DECISIONS.md)
-- [Setup guides](docs/setup/)
-- [Troubleshooting](docs/troubleshooting.md)
+## Start here
 
-## System Prompt
+**If you're reading the design** — the runtime lives on a server, so the
+interesting parts of this repo are the decisions and the configuration
+artifacts, not an app you can run:
 
-The AI agent's personality and behavior are defined in
-[`prompts/system-prompt.md`](prompts/system-prompt.md) (in Portuguese —
-the agent serves Brazilian customers). See
-[`prompts/README.md`](prompts/README.md) for design rationale in English.
+| Read | For |
+| --- | --- |
+| [`docs/architecture.md`](docs/architecture.md) | The end-to-end path of one message |
+| [`docs/data-architecture.md`](docs/data-architecture.md) | Why the agent splits Sheets and Qdrant, and how it picks |
+| [`prompts/system-prompt.md`](prompts/system-prompt.md) | The agent's voice, tool rules, and ordering flow (Portuguese — rationale in English in [`prompts/README.md`](prompts/README.md)) |
+| [`workflows/agent-main.json`](workflows/agent-main.json) | The n8n workflow that wires it together |
+| [`DECISIONS.md`](DECISIONS.md) | Short ADRs for the tradeoffs that aren't visible in the code |
+
+**If you're standing up your own copy** — follow the setup guides in this
+order. Each one ends with a check you can run before moving on:
+
+1. [Hostinger VPS + n8n](docs/setup/hostinger.md) — Docker, Nginx, TLS,
+   and the n8n container
+2. [WhatsApp Business Cloud API](docs/setup/whatsapp.md) — Meta app,
+   phone number, webhook verification
+3. [Google Sheets](docs/setup/google-sheets.md) — service account and the
+   menu/orders sheets, seeded from [`templates/seed/`](templates/seed/)
+4. Import [`workflows/agent-main.json`](workflows/agent-main.json) into
+   n8n and paste in the system prompt
+5. [Qdrant + knowledge ingestion](docs/setup/qdrant.md) — Phase 4, skip
+   for now
+
+Stuck? [`docs/troubleshooting.md`](docs/troubleshooting.md) collects the
+failures worth writing down.
+
+## Repo map
+
+| Path | What's in it |
+| --- | --- |
+| `workflows/` | n8n workflow exports (the actual agent) |
+| `prompts/` | System prompt, its changelog, and design notes |
+| `knowledge/` | Portuguese prose for the Phase 4 vector store |
+| `templates/seed/` | CSV seeds for the Google Sheets tabs |
+| `docs/setup/` | Provisioning guides, one per external service |
+
+## Roadmap
+
+| Phase | Scope | State |
+| --- | --- | --- |
+| 1 | Data model, repo, n8n on Hostinger, WhatsApp Cloud API | In progress |
+| 2 | Conversational agent | Planned |
+| 3 | Ordering flow, owner notifications | Planned |
+| 4 | Qdrant vector store + knowledge ingestion | Planned |
+| 5 | Marketing, scheduled broadcast workflows | Planned |
+| 6 | Monitoring and iteration | Planned |
 
 ## License
 

@@ -1,111 +1,114 @@
 # Data Architecture: Why a Hybrid (Sheets + RAG)
 
-This document explains why the agent uses two data tools — Google
-Sheets for structured data and a Qdrant vector store for semantic
-search — and *when* it picks each one.
+The agent has two data tools: Google Sheets for structured data and a
+Qdrant vector store for semantic search. This document covers why there
+are two, how the agent picks between them, and why they don't ship at the
+same time.
 
-It also explains why the hybrid ships in two stages: Sheets-first
-now, RAG added later. For the staged-rollout decision record, see
-[`DECISIONS.md`](../DECISIONS.md).
+The decision record is in [`DECISIONS.md`](../DECISIONS.md). This is the
+long version.
 
-## TL;DR
+## Two tools, two jobs
 
-| | Google Sheets (direct) | Qdrant (RAG) |
-|---|---|---|
-| **What it stores** | Menu items, prices, availability, business settings, orders | Product stories, FAQ, policies, ingredient deep-dives, preparation guides |
-| **Data shape** | Structured rows and columns | Unstructured prose |
-| **How the agent queries** | Reads rows directly — deterministic | Embedding + similarity search |
-| **Reliability for exact lookups** | 100% recall — sees every item | Variable — depends on embedding match |
-| **Handles open-ended phrasing** | Limited | Excellent |
-| **Who edits it** | Restaurant owner (directly in Sheets) | Developer (via knowledge-ingestion workflow) |
-| **Ships in** | Phase 1–2 (current) | Phase 4 |
+|                                   | Google Sheets (direct)                                      | Qdrant (RAG)                                                              |
+| --------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **What it stores**                | Menu items, prices, availability, business settings, orders | Product stories, FAQ, policies, ingredient deep-dives, preparation guides |
+| **Data shape**                    | Structured rows and columns                                 | Unstructured prose                                                        |
+| **How the agent queries**         | Reads rows directly — deterministic                         | Embedding + similarity search                                             |
+| **Reliability for exact lookups** | 100% recall — sees every item                               | Variable — depends on embedding match                                     |
+| **Handles open-ended phrasing**   | Limited                                                     | Excellent                                                                 |
+| **Who edits it**                  | Restaurant owner (directly in Sheets)                       | Developer (via knowledge-ingestion workflow)                              |
+| **Ships in**                      | Phase 1                                                     | Phase 4                                                                   |
 
-## The instinct, and why it's only half right
+## The tempting wrong answer
 
-A reasonable first instinct is *"RAG is the modern, AI-native pattern,
-so use RAG for everything."* That's partially right — RAG is a more
-impressive architectural pattern than spreadsheet reads, and a
-portfolio that shows vector embeddings, semantic search, and
-retrieval-augmented generation tells the reader we understand
-modern AI infrastructure.
+A reasonable first instinct is _"use RAG for everything."_ RAG is a far more
+impressive and elegant architectural pattern than spreadsheet reads — embeddings, similarity search, retrieval — and
+it's what an AI project is "supposed" to look like next to a spreadsheet
+read.
 
-But for **structured data**, RAG is not inherently more reliable.
-For ~15–20 menu items, direct Sheets access can give the LLM the
-entire menu in its context, every turn. When a customer asks
-*"how much does this cost?"*, the agent sees every single row
-and gives a deterministic answer. A RAG pipeline does similarity
-search against embedded chunks — and might miss the chunk containing
-the price if the query phrasing doesn't embed close to the chunk's
-phrasing. **Similarity is not lookup.**
+It's also the wrong tool for a price list.
 
-RAG shines somewhere else entirely: large bodies of unstructured
-prose where the customer's question is unpredictable and the answer
-is a paragraph, not a value. Ingredient deep-dives, preparation
-methods, allergen explanations, the restaurant's story, edge-case
-delivery policies — these don't fit cleanly in a spreadsheet cell,
-and the corpus grows past what the LLM can hold in context.
+This menu has roughly 15–20 items. Read directly from Sheets, the whole
+catalog fits in the model's context on every turn. When a customer asks
+*"how much does this cost?"*, the agent is looking at every row and
+the answer is deterministic. Route that same question through RAG and it
+becomes a similarity search: embed the question, pull the top handful of
+chunks and hope the one holding the price is among them. Usually it is.
+Usually is a bad property for a number a customer is about to pay.
 
-The hybrid uses each tool for what it does best.
+There's a second cost. Prices change. In Sheets, the owner edits a cell
+and the next message sees the new price. In a vector store, nothing is
+true until the collection is re-embedded, so every price edit becomes a
+pipeline run and a window where the agent confidently quotes a stale
+number.
 
-## How the agent decides which tool to call
+## Where RAG actually earns its place
 
-The system prompt teaches the agent the routing rule:
+Not every question has a cell that answers it:
 
-- **Is the answer a value?** (a price, a yes/no, a time, a phone
-  number, a delivery zone) → call **Google Sheets**.
-- **Is the answer a paragraph?** (a story, an explanation, a nuance,
-  a "why is it like that") → call the **Qdrant** tool.
-- **Is the customer placing an order?** (item selection, quantity,
-  address, payment) → use Sheets to confirm availability and price,
-  then write the order row.
+> *"My kid is lactose intolerant, can I order this cake?"*
+>
+> *"How are your products different from other merchants'?"*
 
-If the agent is uncertain, the prompt biases it toward Sheets first
-(the deterministic source) and only escalates to RAG when the
-question is clearly open-ended.
+The answers are paragraphs. They live in prose that keeps growing — the
+ingredient notes, the allergen policy, the restaurant's story, the
+delivery edge cases in [`knowledge/`](../knowledge/). Two things make this
+RAG's territory rather than Sheets': the phrasing is unpredictable, so
+keyword or row matching doesn't get you there, and the corpus eventually
+outgrows what's reasonable to keep in context on every turn.
 
-## The three approaches considered
+Cramming that into spreadsheet cells works right up until it doesn't. A
+paragraph in a cell reads badly, breaks the structured-data contract the
+rest of the sheet depends on, and puts the owner in charge of editing
+prose inside a grid.
 
-**Approach 1 — Sheets-only (forever).**
-Simple, deterministic, easy for the owner to maintain. The whole
-menu fits in context; recall is perfect. But it doesn't scale to
-rich prose content, and prose answers (ingredient stories, allergy
-nuance) end up copy-pasted into spreadsheet cells where they read
-awkwardly and break the structured-data contract.
+So: each tool does the job it's actually good at.
 
-**Approach 2 — RAG-only.**
-Everything goes through embeddings. This handles unstructured
-content beautifully, but it's overkill for "how much is X?" — adds
-query latency, adds infrastructure (a Qdrant container), and creates
-a sync problem: when the owner edits a price, the vectors must be
-rebuilt before the new price is queryable.
+## How the agent decides
 
-**Approach 3 — Hybrid (chosen).**
-Two tools, agent picks according to the user query. This is how production AI systems are
-actually structured.
+The system prompt gives the agent a routing rule that mostly comes down
+to the shape of the answer:
 
-## Why ship Sheets-first
+- **The answer is a value** — a price, a yes/no, a time, a delivery zone
+  → **Google Sheets**.
+- **The answer is a paragraph** — a story, an explanation, a nuance
+  → **Qdrant**.
+- **The customer is ordering** — item, quantity, address, payment →
+  **Sheets** to confirm availability and price, then write the order row.
 
-Even though hybrid is the destination, Phase 1–2 launch with Sheets
-only:
+When it's ambiguous, the prompt biases toward Sheets. The deterministic
+source is the safer default always, and a wrong price is a worse failure than a thin answer.
 
-- **Faster launch.** Conversational logic, ordering flow, and
-  WhatsApp integration get validated before any RAG retrieval-quality
-  bugs are mixed into the debugging surface.
-- **No customer-visible loss.** With ~15–20 items, Sheets-only gives
-  100% recall on every structured question; the kinds of questions
-  that most need RAG (long prose answers) can be served from the
-  prompt itself in the meantime.
-- **Adding RAG later is additive.** A new tool node in the workflow,
-  a new ingestion sub-workflow, a small prompt update. No refactor
-  of the existing agent.
+## Why Sheets ships first
 
-The current [`workflows/ingest-knowledge.json`](../workflows/ingest-knowledge.json)
-is a placeholder for that Phase 4 work; the live agent currently does not yet
-call into Qdrant.
+Hybrid is the destination, but Phase 1 launches with Sheets alone.
+
+Retrieval quality is its own debugging surface. Chunk sizes, embedding
+choice, top-k, the gap between what a customer types and what the corpus
+says — none of that is hard to fix, but all of it is hard to fix while
+also working out whether the ordering flow drops state on the fourth
+message. Shipping Sheets first means that when the agent gives a bad
+answer, there's one place it came from.
+
+Nothing customer-facing is lost in the meantime. At this menu size,
+Sheets-only gives full recall on every structured question, and the
+handful of prose answers that matter early can live in the system prompt
+until the corpus justifies a vector store.
+
+And the upgrade is additive: a tool node in
+[`agent-main.json`](../workflows/agent-main.json), an ingestion
+sub-workflow, a short prompt update. Nothing about the Phase 1 agent gets
+rewritten to make room for it.
+
+[`workflows/ingest-knowledge.json`](../workflows/ingest-knowledge.json)
+is a placeholder for that work. The live agent does not call Qdrant yet.
 
 ## Infrastructure note
 
-When Qdrant is enabled in Phase 4, it runs as an additional Docker
-service alongside n8n on the same VPS. Memory footprint for a small
-knowledge corpus is ~100–200MB — comfortably within a KVM 2 (8GB)
-instance.
+Qdrant runs as a second Docker service next to n8n on the same VPS, with
+n8n reaching it over the internal network at `http://qdrant:6333`. A
+knowledge base this size needs roughly 100–200MB of RAM, which a KVM 2
+(8GB) instance absorbs without noticing. The service is already written
+into the compose file, commented out — see
+[`docs/setup/hostinger.md`](setup/hostinger.md).
