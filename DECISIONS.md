@@ -6,6 +6,38 @@ Newest first.
 
 ---
 
+## 2026-09 — One spreadsheet with three tabs, not three spreadsheets
+
+**Decision:** All structured data lives in a single Google Spreadsheet
+with three tabs — `cardapio` (menu), `configuracoes` (settings), `pedidos`(orders) — addressed by
+one `GOOGLE_SHEETS_ID`.
+
+**Why:**
+- **One thing to grant.** The service account needs an Editor share on
+  every document it touches. Three documents means three shares, and a
+  missed one surfaces as a runtime permissions error rather than a
+  setup-time failure.
+- **One thing to restore.** Google's revision history is per-file. A
+  single document means menu, settings, and orders roll back to a
+  consistent point together.
+- **One thing for the owner to keep track of.** She works in one
+  bookmark with tabs along the bottom, not three files in Drive.
+- **One env var.** The alternative required `MENU_SHEET_ID`,
+  `SETTINGS_SHEET_ID`, and `ORDERS_SHEET_ID`, none of which had made it
+  into `.env.example` — the drift showed up before the model was even
+  built.
+
+**Tradeoff accepted:** access is all-or-nothing. Anyone who can edit the
+menu can also read `pedidos` (orders), which holds customer names, phone numbers, and delivery addresses. Today the only editor is the owner, so this costs nothing.
+
+**Re-evaluate when:** someone other than the owner needs to maintain the
+menu, or the menu needs to be shared read-only. Splitting `pedidos` into
+its own document is then a small migration, not a redesign.
+
+**Related:** tab names and column headers are Portuguese. The spreadsheet is the one artifact the non-technical owner edits directly — same reasoning as the Portuguese system prompt below.
+
+---
+
 ## 2026-05 — Hybrid data layer, shipped in two stages
 
 **Decision:** The agent will use a hybrid data layer — Google Sheets
