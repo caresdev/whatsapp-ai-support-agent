@@ -14,35 +14,48 @@ n8n reads and writes to these sheets via the Google Sheets API.
 For the full Sheets-vs-Qdrant split, see
 [`docs/data-architecture.md`](../data-architecture.md).
 
-## Spreadsheets used
+## One spreadsheet, three tabs
 
-| Sheet | Purpose | Read/Write |
+| Tab | Purpose | Read/Write |
 |---|---|---|
-| `menu` | Items, categories, prices, availability flag | Read |
-| `settings` | Hours, delivery zones, payment methods | Read |
-| `orders` | Order log with timestamp, items, total, status | Write |
+| `cardapio` (menu) | Items, categories, prices, ingredients, availability flag | Read |
+| `configuracoes`(settings) | Key-value settings: hours, delivery zones, payment methods | Read |
+| `pedidos` (orders) | Order log with timestamp, items, total, status | Write |
+
+Everything lives in a single spreadsheet rather than three. That means one
+service-account share to grant, one ID to configure, and one revision
+history that restores all three tabs to a consistent point.
+
+The tab and column names are Portuguese because the owner edits them
+directly. See
+[`templates/README.md`](../../templates/README.md).
 
 ## Setup steps
 
 1. **Create a Google Cloud project** and enable the Google Sheets API.
-2. **Create a service account**, download the JSON key, and share each
+2. **Create a service account**, download the JSON key, and share the
    spreadsheet with the service account's email (Editor permission).
-3. **Create the three spreadsheets** above. Use the CSVs in
+3. **Create the spreadsheet** with the three tabs above. Use the CSVs in
    [`templates/seed/`](../../templates/seed/) as the column schema.
 4. **Add the credentials in n8n**: Credentials → New → "Google Sheets
    Service Account" → paste the JSON key.
-5. **Set the sheet IDs as env vars** (`MENU_SHEET_ID`, `SETTINGS_SHEET_ID`,
-   `ORDERS_SHEET_ID`) referenced by the workflows.
+5. **Set `GOOGLE_SHEETS_ID`** in the environment to the spreadsheet's
+   document ID — the segment between `/d/` and `/edit` in its URL.
 
-## Seeding the menu
+## Seeding the sheets
 
-The seed CSVs in `templates/seed/` are formatted for direct import:
+The seed CSVs in `templates/seed/` carry the column headers, ready for
+direct import. They ship without sample rows; you're filling the catalog
+with the restaurant's real menu.
 
-1. Open the empty `menu` spreadsheet
-2. **File → Import → Upload `menu-catalog.csv`**
+For each of the three files:
+
+1. Create the tab and give it the Portuguese name from the table above
+2. **File → Import → Upload** the matching CSV
 3. Choose **"Replace current sheet"**, separator type **comma**
-4. Repeat with `whatsapp-messages.csv` for the message templates sheet
 
-There is no programmatic seeder — the agent treats Sheets as the source
-of truth, so manual import keeps the workflow obvious to the restaurant
-owner who maintains it.
+`orders.csv` is headers-only by design — the agent appends to it.
+
+There is no programmatic seeder. The agent treats Sheets as the source of
+truth, so manual import keeps the workflow obvious to the restaurant owner
+who maintains it.

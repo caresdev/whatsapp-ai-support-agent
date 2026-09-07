@@ -1,0 +1,1 @@
+pedido_id,data_hora,cliente_nome,cliente_telefone,itens,valor_itens,taxa_entrega,valor_total,endereco,forma_pagamento,observacoes,status
