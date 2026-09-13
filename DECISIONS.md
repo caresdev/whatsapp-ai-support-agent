@@ -6,6 +6,39 @@ Newest first.
 
 ---
 
+## 2026-09 — Traefik terminates TLS, not Nginx + Certbot
+
+**Decision:** Traefik sits in front of n8n and owns TLS — requesting,
+storing, and renewing the certificate itself. The alternative considered
+was Nginx with Certbot.
+
+**Why:**
+- **One process owns the certificate.** Traefik has an ACME client built
+  in, so the thing that serves the certificate is the thing that renews
+  it. Nginx + Certbot needs a renewal timer *and* a reload hook wired up
+  separately, and its failure mode is quiet: Certbot renews, Nginx keeps
+  serving the expired certificate from memory until something reloads it.
+- **Routing comes from container labels.** Adding Qdrant in Phase 4 is a
+  label on a service, not a new vhost file plus a reload.
+- **The redirect and the challenge don't fight.** TLS-ALPN-01 validates
+  over `:443`, so the blanket HTTP→HTTPS redirect can stay. HTTP-01 would
+  have needed a carve-out in the redirect for `/.well-known/`.
+
+**Tradeoffs accepted:**
+- Traefik mounts the Docker socket (read-only) to watch labels. Anything
+  that can read that socket can enumerate the whole daemon, so it is a
+  real widening of blast radius in exchange for the config ergonomics.
+- **Label mistakes fail silently.** Unknown keys are ignored by the Docker
+  provider rather than rejected, and Traefik's default log level is
+  `ERROR`, so a typo produces neither a warning nor a visible symptom.
+  Two options removed in Traefik v3 sat in the compose file doing nothing
+  until a review caught them. Nginx would have refused to start.
+
+**Re-evaluate when:** the box needs to front a service that isn't a Docker
+container, or routing needs something labels can't express.
+
+---
+
 ## 2026-09 — One spreadsheet with three tabs, not three spreadsheets
 
 **Decision:** All structured data lives in a single Google Spreadsheet
