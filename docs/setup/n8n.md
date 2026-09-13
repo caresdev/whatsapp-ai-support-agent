@@ -138,11 +138,12 @@ ufw --force enable
 Do this **last**, and keep `22/tcp` in the list — enabling UFW without it
 will end your SSH session.
 
-Note that UFW does **not** filter ports published by Docker: containers
-insert their own rules into the `DOCKER-USER` chain, ahead of UFW's. A
-container published to `0.0.0.0` stays reachable whatever UFW says. That
-is why n8n is bound to `127.0.0.1` in the compose file rather than left to
-the firewall.
+Note that UFW does **not** filter ports published by Docker. UFW's rules
+sit in the `INPUT` chain, but a published container port is
+destination-NAT'd and then filtered in `FORWARD`, through Docker's own
+chain — so it never reaches UFW's rules at all. A container published to
+`0.0.0.0` stays reachable whatever UFW says. That is why n8n is bound to
+`127.0.0.1` in the compose file rather than left to the firewall.
 
 ## Maintenance
 

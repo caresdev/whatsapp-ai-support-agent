@@ -96,13 +96,21 @@ data loss.
 
 ### UFW is enabled but the port is still reachable
 
-Docker writes its own iptables rules into the `DOCKER-USER` chain, which
-is evaluated before UFW's. A container published to `0.0.0.0` is reachable
-regardless of UFW.
+UFW filters the `INPUT` chain. A published container port is
+destination-NAT'd and then filtered in `FORWARD`, via Docker's own chain,
+so it never passes through UFW's rules at all.
 
-Don't publish it: bind to loopback (`127.0.0.1:5678:5678`, as n8n does) or
-publish nothing and let other containers reach it over the Compose
-network. UFW protects host services, not containers.
+`DOCKER-USER` is the one hook Docker leaves for your rules, evaluated
+ahead of its own — and it is empty by default:
+
+```bash
+iptables -S DOCKER-USER    # just "-N DOCKER-USER" means nothing is filtered
+```
+
+Rather than write rules there, don't publish the port: bind to loopback
+(`127.0.0.1:5678:5678`, as n8n does) or publish nothing and let other
+containers reach it over the Compose network. UFW protects host services,
+not containers.
 
 ### Pasting into the provider's web console mangles the command
 
