@@ -113,13 +113,14 @@ failures worth writing down.
 | `prompts/` | System prompt, its changelog, and design notes |
 | `knowledge/` | Portuguese prose for the Phase 4 vector store |
 | `templates/seed/` | CSV seeds for the Google Sheets tabs |
+| `infra/` | Compose stack for the VPS — n8n behind Traefik |
 | `docs/setup/` | Provisioning guides, one per external service |
 
 ## Roadmap
 
 | Phase | Scope | State |
 | --- | --- | --- |
-| 1 | Data model, repo, n8n on Hostinger, WhatsApp Cloud API | In progress |
+| 1 | Data model, repo, n8n on a VPS, WhatsApp Cloud API | In progress |
 | 2 | Conversational agent | Planned |
 | 3 | Ordering flow, owner notifications | Planned |
 | 4 | Qdrant vector store + knowledge ingestion | Planned |
