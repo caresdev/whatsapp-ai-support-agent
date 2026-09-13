@@ -144,6 +144,54 @@ container published to `0.0.0.0` stays reachable whatever UFW says. That
 is why n8n is bound to `127.0.0.1` in the compose file rather than left to
 the firewall.
 
+## Maintenance
+
+Run these from the directory holding the compose file.
+
+```bash
+docker compose ps                    # health
+docker compose logs -f n8n           # follow logs
+docker compose logs --tail=50 traefik
+docker compose restart n8n
+```
+
+**Certificates renew themselves.** Traefik renews about 30 days before
+expiry and stores the result in its volume — nothing to schedule. To check:
+
+```bash
+echo | openssl s_client -connect n8n.<your-domain>:443 \
+  -servername n8n.<your-domain> 2>/dev/null | openssl x509 -noout -dates
+```
+
+**Updating.** Both images are pinned, so updating is a deliberate edit:
+back up first, bump the tag, then `docker compose pull && docker compose up -d`.
+Read n8n's release notes before crossing a major version.
+
+**Backing up.** Workflows, credentials, the encryption key, and execution
+history all live in one volume:
+
+```bash
+docker run --rm -v <project>_n8n_data:/d -v "$PWD":/backup \
+  alpine tar czf /backup/n8n-$(date +%F).tar.gz -C /d .
+```
+
+Restore into a stopped stack:
+
+```bash
+docker compose down
+docker run --rm -v <project>_n8n_data:/d -v "$PWD":/backup \
+  alpine sh -c "rm -rf /d/* && tar xzf /backup/n8n-<date>.tar.gz -C /d"
+docker compose up -d
+```
+
+`<project>` is the Compose project name — the directory name by default.
+Confirm with `docker volume ls`.
+
+That archive holds the credential encryption key, so treat it as a secret:
+it decrypts everything else in the file. Note that execution history is
+pruned after 7 days by `EXECUTIONS_DATA_MAX_AGE`, so backups are not a
+substitute for it.
+
 ## Phase 4: Qdrant
 
 Uncomment the `qdrant` service and the `qdrant_data` volume, then
