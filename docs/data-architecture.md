@@ -111,4 +111,4 @@ n8n reaching it over the internal network at `http://qdrant:6333`. A
 knowledge base this size needs roughly 100–200MB of RAM, which a KVM 2
 (8GB) instance absorbs without noticing. The service is already written
 into the compose file, commented out — see
-[`docs/setup/hostinger.md`](setup/hostinger.md).
+[`docs/setup/n8n.md`](setup/n8n.md).

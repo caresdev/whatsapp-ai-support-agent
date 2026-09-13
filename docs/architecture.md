@@ -15,8 +15,8 @@ flowchart TB
     owner["Restaurant owner<br/>WhatsApp"]
     meta["WhatsApp Business Cloud API<br/>Meta"]
 
-    subgraph vps["Hostinger VPS - Docker"]
-        nginx["Nginx<br/>TLS, Let's Encrypt"]
+    subgraph vps["VPS - Docker"]
+        traefik["Traefik<br/>TLS, Let's Encrypt"]
 
         subgraph n8n["n8n"]
             webhook["Webhook<br/>verify signature<br/>dedupe message.id<br/>ACK 200 first"]
@@ -32,8 +32,8 @@ flowchart TB
     sheets[("Google Sheets<br/>menu, settings, orders")]
 
     customer -->|message| meta
-    meta -->|webhook POST| nginx
-    nginx --> webhook
+    meta -->|webhook POST| traefik
+    traefik --> webhook
     webhook --> agent
     agent <--> memory
     agent --> llm
@@ -56,7 +56,8 @@ Dashed edges are Phase 4. Source: [`images/architecture.mmd`](images/architectur
 
 1. The customer sends a WhatsApp message. Meta receives it and POSTs a
    webhook payload to the VPS.
-2. Nginx terminates TLS and proxies to n8n on `localhost:5678`.
+2. Traefik terminates TLS and proxies to n8n on port `5678` over the
+   Docker network.
 3. The webhook node checks the request signature, drops the payload if
    it's a duplicate, and returns `200` before any AI work starts.
 4. The agent loads the conversation history for that phone number,

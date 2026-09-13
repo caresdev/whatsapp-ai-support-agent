@@ -23,8 +23,8 @@ flowchart TB
     owner["Restaurant owner<br/>WhatsApp"]
     meta["WhatsApp Business Cloud API<br/>Meta"]
 
-    subgraph vps["Hostinger VPS - Docker"]
-        nginx["Nginx<br/>TLS, Let's Encrypt"]
+    subgraph vps["VPS - Docker"]
+        traefik["Traefik<br/>TLS, Let's Encrypt"]
 
         subgraph n8n["n8n"]
             webhook["Webhook<br/>verify signature<br/>dedupe message.id<br/>ACK 200 first"]
@@ -40,8 +40,8 @@ flowchart TB
     sheets[("Google Sheets<br/>menu, settings, orders")]
 
     customer -->|message| meta
-    meta -->|webhook POST| nginx
-    nginx --> webhook
+    meta -->|webhook POST| traefik
+    traefik --> webhook
     webhook --> agent
     agent <--> memory
     agent --> llm
@@ -91,8 +91,8 @@ artifacts, not an app you can run:
 **If you're standing up your own copy** — follow the setup guides in this
 order. Each one ends with a check you can run before moving on:
 
-1. [Hostinger VPS + n8n](docs/setup/hostinger.md) — Docker, Nginx, TLS,
-   and the n8n container
+1. [VPS + n8n](docs/setup/n8n.md) — Docker, Traefik, TLS, and the n8n
+   container
 2. [WhatsApp Business Cloud API](docs/setup/whatsapp.md) — Meta app,
    phone number, webhook verification
 3. [Google Sheets](docs/setup/google-sheets.md) — service account and the
