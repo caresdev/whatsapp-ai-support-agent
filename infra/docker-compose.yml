@@ -57,6 +57,12 @@ services:
       - N8N_PROXY_HOPS=1
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
+      # Read by the webhook workflow: the GET handshake echoes hub.challenge
+      # only when hub.verify_token matches, and every POST is checked against
+      # X-Hub-Signature-256. Both come from .env and never from a workflow.
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET}
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
     volumes:
       - n8n_data:/home/node/.n8n
     healthcheck:
