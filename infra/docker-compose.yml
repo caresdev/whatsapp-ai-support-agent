@@ -63,6 +63,8 @@ services:
       - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
       - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET}
       - NODE_FUNCTION_ALLOW_BUILTIN=crypto
+      # Without this, n8n denies nodes any read of the two secrets above.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n_data:/home/node/.n8n
     healthcheck:
